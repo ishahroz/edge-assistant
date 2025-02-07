@@ -10,7 +10,7 @@ Create a full-stack application with a React-based chat interface that interacts
    - Build a chat interface where users can type questions and receive answers.
    - Display the conversation history in an intuitive way.
    - Include basic styling to make the interface user-friendly.
-2. Backend (Node.js):
+2. Backend (Django):
    - Accept user questions via an API endpoint.
    - Determine whether the question is related to the provided dataset or requires general knowledge.
    - Use RAG to query the dataset for specific operations (e.g., median, max, or min salaries by department).
