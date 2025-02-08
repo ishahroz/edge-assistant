@@ -10,3 +10,6 @@ db.sqlite3
 
 # secrets
 .env
+
+# ruff
+.ruff_cache
