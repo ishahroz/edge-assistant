@@ -1,6 +1,7 @@
 """Consumers for Chat application."""
 
 import json
+import os
 
 from channels.generic.websocket import AsyncWebsocketConsumer
 from openai import OpenAI
@@ -23,7 +24,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.stream_llm_response(text_data)
 
     async def stream_llm_response(self, query: str):
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[

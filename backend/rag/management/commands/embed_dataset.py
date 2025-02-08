@@ -1,7 +1,8 @@
-from django.core.management.base import BaseCommand
 import os
-from dotenv import load_dotenv
+
 import pandas as pd
+from django.core.management.base import BaseCommand
+from dotenv import load_dotenv
 from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 
@@ -46,9 +47,7 @@ class Command(BaseCommand):
         try:
             df = pd.read_excel(excel_file_path, engine="openpyxl")
         except FileNotFoundError:
-            self.stdout.write(
-                self.style.ERROR(f"Dataset not found at {excel_file_path}.")
-            )
+            self.stdout.write(self.style.ERROR(f"Dataset not found at {excel_file_path}."))
             return
 
         self.stdout.write(f"Loaded dataset with {len(df)} rows.")

@@ -23,4 +23,5 @@ dev = [
 
 [tool.ruff]
 lint.select = ["ALL"]
+lint.ignore = ["D100", "D101"]
 line-length = 91
