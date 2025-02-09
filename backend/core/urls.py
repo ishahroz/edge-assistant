@@ -19,6 +19,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 
+from chat.views import ChatHistoryListCreate, sse_llm_view
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/chats/", ChatHistoryListCreate.as_view(), name="chat-list"),
+    path("rag/stream/", sse_llm_view, name="sse_llm"),
 ]

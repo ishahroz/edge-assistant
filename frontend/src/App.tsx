@@ -1,15 +1,14 @@
 import './App.css'
 import '@mantine/core/styles.css';
 import { MantineProvider } from '@mantine/core';
-import { Button } from '@mantine/core';
+import ChatPage from './chat/pages/ChatPage';
 
 function App() {
-
   return (
     <MantineProvider>
-      <Button variant="filled">Button</Button>
+      <ChatPage />
     </MantineProvider>
-  )
+  );
 }
 
-export default App
+export default App;
