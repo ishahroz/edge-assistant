@@ -1,10 +1,6 @@
 import { Box, Button, ScrollArea, TextInput } from '@mantine/core';
 import ReactMarkdown from 'react-markdown';
-
-export interface Message {
-  content: string;
-  sender: 'user' | 'server';
-}
+import { Message } from '../types';
 
 interface ChatBoxProps {
   messages: Message[];
@@ -18,9 +14,9 @@ export function ChatBox({ messages, inputValue, setInputValue, onSendMessage }: 
     <>
       <ScrollArea style={{ flexGrow: 1 }}>
         {messages.map((msg, idx) => (
-          <Box 
-            key={idx} 
-            mb="md" 
+          <Box
+            key={idx}
+            mb="md"
             style={{ display: 'flex', justifyContent: msg.sender === 'user' ? 'flex-end' : 'flex-start' }}
           >
             <Box style={{

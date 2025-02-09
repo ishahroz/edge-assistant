@@ -1,8 +1,10 @@
+import os
+
 from pinecone import Pinecone
 
 
-def get_context_from_pinecone(query, top_k=3):
-    """Retrieve relevant context from Pinecone vector store"""
+def get_context_from_pinecone(query: str, top_k: int = 3) -> str:
+    """Retrieve relevant context from Pinecone vector store."""
     pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
     index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
