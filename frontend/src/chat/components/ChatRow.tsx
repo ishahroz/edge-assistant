@@ -22,7 +22,11 @@ export function ChatRow({ history, isActive, onClick }: ChatRowProps) {
                 cursor: 'pointer',
                 transition: 'background-color 0.2s'
             }}
-            onClick={onClick}
+            onClick={() => {
+                if (!isActive) {
+                    onClick();
+                }
+            }}
         >
             <IconMessageCircle size={18} />
             {truncatedTitle}

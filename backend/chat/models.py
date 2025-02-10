@@ -13,11 +13,13 @@ class ChatHistory(models.Model):
 
     @property
     def derived_title(self) -> str:
-        """Derived title."""
+        """Derived title from first message if empty."""
         if self.title:
             return self.title
         if self.messages.exists():
-            return self.messages.first().content[:50] + "..."
+            first_user_message = self.messages.filter(role=ChatMessage.Role.USER).first()
+            if first_user_message:
+                return first_user_message.content[:50] + "..."
         return "New Chat"
 
 

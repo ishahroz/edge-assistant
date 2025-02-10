@@ -86,9 +86,9 @@ def stream_llm_response_view(request: HttpRequest) -> StreamingHttpResponse:
             )
 
             # Update title if empty
-            if not chat_history.title:
+            if chat_history.title in ["", "New Chat"]:
                 chat_history.title = chat_history.derived_title
-                chat_history.save()
+                chat_history.save(update_fields=["title"])
 
             yield "data: [DONE]\n\n"
 
