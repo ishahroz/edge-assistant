@@ -1,21 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AppShell, Group, Title, Box } from '@mantine/core';
 import { IconMessageCircle } from '@tabler/icons-react';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatBox } from '../components/ChatBox';
-import { ChatHistory } from '../types';
 import { API } from '../../constants/api';
 
 export default function ChatPage() {
-  const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
-
-  useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.histories.list}`)
-      .then(res => res.json())
-      .then(data => setChatHistories(data));
-  }, []);
 
   const handleNewChat = () => {
     setIsCreatingChat(true);
@@ -28,7 +20,6 @@ export default function ChatPage() {
     })
       .then(res => res.json())
       .then(data => {
-        setChatHistories(prev => [data, ...prev]);
         setActiveHistoryId(data.id);
       })
       .finally(() => setIsCreatingChat(false));
@@ -49,7 +40,6 @@ export default function ChatPage() {
 
       <AppShell.Navbar p="md" withBorder>
         <ChatSidebar
-          histories={chatHistories}
           activeHistoryId={activeHistoryId}
           onHistorySelect={setActiveHistoryId}
           onNewChat={handleNewChat}
