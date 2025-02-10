@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AppShell, Group, Title } from '@mantine/core';
+import { AppShell, Group, Title, Box } from '@mantine/core';
 import { IconMessageCircle } from '@tabler/icons-react';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatBox } from '../components/ChatBox';
@@ -10,21 +10,37 @@ export default function ChatPage() {
   const [activeHistoryId, setActiveHistoryId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/chats/list/')
+    fetch('http://localhost:8000/api/chats/histories/')
       .then(res => res.json())
       .then(data => setChatHistories(data));
   }, []);
+
+  useEffect(() => {
+    if (activeHistoryId) {
+      fetch(`http://localhost:8000/api/chats/histories/${activeHistoryId}/messages/`)
+        .then(res => res.json())
+        .then(data => setMessages(data.map((msg: any) => ({
+          content: msg.content,
+          sender: msg.role === 'user' ? 'user' : 'bot'
+        }))));
+    } else {
+      setMessages([]);
+    }
+  }, [activeHistoryId]);
 
   const handleSendMessage = () => {
     setMessages(prev => [
       ...prev,
       { content: inputValue, sender: 'user' },
-      { content: '', sender: 'server' }
+      { content: '', sender: 'bot' }
     ]);
 
-    const eventSource = new EventSource(`http://localhost:8000/api/chats/stream/?query=${encodeURIComponent(inputValue)}`);
+    const eventSource = new EventSource(
+      `http://localhost:8000/api/chats/stream/?query=${encodeURIComponent(inputValue)}&chat_history_id=${activeHistoryId}`
+    );
 
     eventSource.onmessage = (event) => {
       if (event.data === "[DONE]") {
@@ -37,15 +53,15 @@ export default function ChatPage() {
         const lastMessage = updated[updated.length - 1];
 
         if (event.type === 'status') {
-          if (lastMessage.sender === 'server') {
+          if (lastMessage.sender === 'bot') {
             lastMessage.content = event.data;
           } else {
-            updated.push({ content: event.data, sender: 'server' });
+            updated.push({ content: event.data, sender: 'bot' });
           }
           return updated;
         }
 
-        if (lastMessage?.sender === 'server') {
+        if (lastMessage?.sender === 'bot') {
           const current = lastMessage.content;
           const incoming = event.data;
 
@@ -72,6 +88,24 @@ export default function ChatPage() {
     setInputValue('');
   };
 
+  const handleNewChat = () => {
+    setIsCreatingChat(true);
+    fetch('http://localhost:8000/api/chats/histories/create/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title: '' }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        setChatHistories(prev => [data, ...prev]);
+        setActiveHistoryId(data.id);
+        setMessages([]);
+      })
+      .finally(() => setIsCreatingChat(false));
+  };
+
   return (
     <AppShell
       header={{ height: 60 }}
@@ -90,16 +124,39 @@ export default function ChatPage() {
           histories={chatHistories}
           activeHistoryId={activeHistoryId}
           onHistorySelect={setActiveHistoryId}
+          onNewChat={handleNewChat}
+          isCreating={isCreatingChat}
         />
       </AppShell.Navbar>
 
       <AppShell.Main>
-        <ChatBox
-          messages={messages}
-          inputValue={inputValue}
-          setInputValue={setInputValue}
-          onSendMessage={handleSendMessage}
-        />
+        {activeHistoryId ? (
+          <ChatBox
+            messages={messages}
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            onSendMessage={handleSendMessage}
+          />
+        ) : (
+          <Box style={{
+            display: 'flex',
+            height: '100%',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: '2rem'
+          }}>
+            <div>
+              <Title order={2} mb="md">
+                Welcome to Edge Assistant
+              </Title>
+              <p style={{ color: '#666', maxWidth: '500px', margin: '0 auto' }}>
+                Your one-stop solution for querying company knowledge management.
+                Select an existing chat or start a new conversation.
+              </p>
+            </div>
+          </Box>
+        )}
       </AppShell.Main>
     </AppShell>
   );
