@@ -1,134 +1,126 @@
+import logging
 import os
 
 import pandas as pd
-from django.core.management.base import BaseCommand
-from dotenv import load_dotenv
-from openai import OpenAI
-from pinecone import Pinecone, ServerlessSpec
+from django.apps import apps
+from django.core.management.base import BaseCommand, CommandError
 
 
 class Command(BaseCommand):
-    help = "Chunks the dataset and embeds it into Pinecone for RAG queries."
+    help = "Chunks the fake employee dataset and embeds it into Pinecone for RAG queries."
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize the command."""
         super().__init__()
+        self.logger = logging.getLogger(__name__)
 
-        # Load environment variables from .env file
-        dotenv_path = os.path.join(os.path.dirname(__file__), "..", "..", "..", ".env")
-        load_dotenv(dotenv_path)
+        self.rag_app_config = apps.get_app_config("rag")
 
-        # Initialize OpenAI client here
-        OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+        if not self.rag_app_config.rag_client:
+            msg = "RAG client not initialized."
+            raise CommandError(msg)
 
-        if not OPENAI_API_KEY:
-            self.stdout.write(
-                self.style.ERROR("OPENAI_API_KEY is not set in the environment.")
-            )
-            exit(1)
-
-        self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-    def handle(self, *args, **kwargs):
-        # Step 1: Environment variables check
-        PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-        INDEX_NAME = os.getenv("PINECONE_INDEX_NAME")
-
-        if not PINECONE_API_KEY:
-            self.stdout.write(
-                self.style.ERROR("PINECONE_API_KEY is not set in the environment.")
-            )
-            return
-
-        # Step 2: Load Dataset
-        excel_file_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "data", "Fake_Employee_Data.xlsx"
-        )
+    def handle(self, *args, **kwargs) -> None:  # noqa: ARG002
+        """Handle the command."""
+        employee_data_path = f"{self.rag_app_config.path}/data/Fake_Employee_Data.xlsx"
 
         try:
-            df = pd.read_excel(excel_file_path, engine="openpyxl")
+            employee_data = pd.read_excel(employee_data_path, engine="openpyxl")
         except FileNotFoundError:
-            self.stdout.write(self.style.ERROR(f"Dataset not found at {excel_file_path}."))
-            return
+            msg = f"Dataset not found at {employee_data_path}."
+            raise CommandError(msg) from None
 
-        self.stdout.write(f"Loaded dataset with {len(df)} rows.")
+        self.logger.info("Loaded dataset with %d rows.", len(employee_data))
 
-        # Step 3: Chunking the data
-        data_chunks = self.chunk_rows_into_text(df)
-        self.stdout.write(f"Generated {len(data_chunks)} text chunks from the dataset.")
+        data_chunks = self.chunk_rows_into_text(employee_data)
+        self.logger.info("Generated %d text chunks from the dataset.", len(data_chunks))
 
-        # Step 4: Initialize Pinecone
-        pinecone = Pinecone(api_key=PINECONE_API_KEY)
-
-        if INDEX_NAME not in pinecone.list_indexes():
-            pinecone.create_index(
-                name=INDEX_NAME,
-                dimension=1536,
-                spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-            )  # 1536 for text-embedding-3-small
-            self.stdout.write(
-                self.style.SUCCESS(f"Pinecone index '{INDEX_NAME}' created.")
-            )
-        else:
-            self.stdout.write(f"Using existing Pinecone index '{INDEX_NAME}'.")
-
-        index = pinecone.Index(INDEX_NAME)
-
-        # Step 5: Embedding and Upserting
-        self.embed_and_upsert(data_chunks, index)
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                "Dataset has been successfully embedded and upserted to Pinecone."
-            )
+        self.embed_and_upsert(data_chunks)
+        self.logger.info(
+            "Dataset has been successfully embedded and upserted to Pinecone.",
         )
 
-    def chunk_rows_into_text(self, df):
-        """
-        Converts each row of the DataFrame into a text chunk for embedding.
-        """
+    def chunk_rows_into_text(self, df: pd.DataFrame) -> list:
+        """Chunk rows into text (document)."""
         chunks = []
+
+        # Individual employee data
         for idx, row in df.iterrows():
-            text = f"Name: {row['Name']}, Department: {row['Department']}, Salary: {row['Salary']}"
-            chunks.append((idx, text))
+            text = (
+                f"Employee Record: Name: {row['Name']}, "
+                f"Department: {row['Department']}, "
+                f"Salary: ${row['Salary']:,.2f}"
+            )
+            chunks.append((f"emp-{idx}", text))
+
+        # Overall data statistics
+        overall_stats = {
+            "median_salary": df["Salary"].median(),
+            "max_salary": df["Salary"].max(),
+            "max_employee": df.loc[df["Salary"].idxmax(), "Name"],
+            "max_dept": df.loc[df["Salary"].idxmax(), "Department"],
+            "min_salary": df["Salary"].min(),
+            "min_employee": df.loc[df["Salary"].idxmin(), "Name"],
+            "min_dept": df.loc[df["Salary"].idxmin(), "Department"],
+            "total_employees": len(df),
+            "total_salary": df["Salary"].sum(),
+        }
+
+        # Overall data statistics chunk
+        overall_text = (
+            "Overall Data Statistics:\n"
+            f"Overall Median Salary: ${overall_stats['median_salary']:,.2f}\n"
+            f"Overall Maximum Salary: ${overall_stats['max_salary']:,.2f} "
+            f"(Employee: {overall_stats['max_employee']}, "
+            f"Dept: {overall_stats['max_dept']})\n"
+            f"Overall Minimum Salary: ${overall_stats['min_salary']:,.2f} "
+            f"(Employee: {overall_stats['min_employee']}, "
+            f"Dept: {overall_stats['min_dept']})\n"
+            f"Overall Total Employees: {overall_stats['total_employees']}\n"
+            f"Overall Total Salary: ${overall_stats['total_salary']:,.2f}"
+        )
+        chunks.append(("overall-data-stats", overall_text))
+
+        # Department-wise statistics
+        dept_groups = df.groupby("Department")
+        for dept, group in dept_groups:
+            dept_stats = {
+                "median_salary": group["Salary"].median(),
+                "max_salary": group["Salary"].max(),
+                "max_employee": group.loc[group["Salary"].idxmax(), "Name"],
+                "min_salary": group["Salary"].min(),
+                "min_employee": group.loc[group["Salary"].idxmin(), "Name"],
+                "employee_count": len(group),
+                "total_salary": group["Salary"].sum(),
+            }
+
+            dept_text = (
+                f"Department Statistics ({dept}):\n"
+                f"Department Median Salary: ${dept_stats['median_salary']:,.2f}\n"
+                f"Department Max Salary: ${dept_stats['max_salary']:,.2f} "
+                f"(Employee: {dept_stats['max_employee']})\n"
+                f"Department Min Salary: ${dept_stats['min_salary']:,.2f} "
+                f"(Employee: {dept_stats['min_employee']})\n"
+                f"Department Total Employees: {dept_stats['employee_count']}\n"
+                f"Department Total Salary: ${dept_stats['total_salary']:,.2f}"
+            )
+            chunks.append((f"dept-data-stats-{dept}", dept_text))
+
         return chunks
 
-    def get_embedding(self, text):
-        """
-        Generates an embedding for the given text using OpenAI.
-        """
-        try:
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-3-small", input=text
-            )
-            return response.data[0].embedding
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error generating embedding: {e}"))
-            return None
-
-    def embed_and_upsert(self, data_chunks, index):
-        """
-        Embeds each text chunk and uploads it to Pinecone.
-        """
-        batch_size = 50
+    def embed_and_upsert(self, data_chunks: list) -> None:
+        """Embed and upsert data chunks to Pinecone."""
         vectors_to_upsert = []
+        for row_id, text_chunk in data_chunks:
+            try:
+                embedding = self.rag_app_config.rag_client.openai.generate_embedding(
+                    text_chunk,
+                    model=os.getenv("EMBEDDING_MODEL"),
+                )
+                metadata = {"original_text": text_chunk}
+                vectors_to_upsert.append((f"row-{row_id}", embedding, metadata))
+            except Exception as e:
+                self.logger.exception("Skipping row %s due to error: %s", row_id, str(e))
 
-        for i, (row_id, text_chunk) in enumerate(data_chunks):
-            embedding_vector = self.get_embedding(text_chunk)
-            if embedding_vector is None:
-                continue
-
-            metadata = {"original_text": text_chunk}
-            doc_id = f"row-{row_id}"
-
-            vectors_to_upsert.append((doc_id, embedding_vector, metadata))
-
-            # Batch upsert every 'batch_size' items
-            if (i + 1) % batch_size == 0:
-                index.upsert(vectors=vectors_to_upsert)
-                self.stdout.write(f"Upserted {i + 1} embeddings so far...")
-                vectors_to_upsert.clear()
-
-        # Upsert any remaining vectors
         if vectors_to_upsert:
-            index.upsert(vectors=vectors_to_upsert)
-            self.stdout.write(f"Upserted final {len(vectors_to_upsert)} embeddings.")
+            self.rag_app_config.rag_client.pinecone.upsert_vectors(vectors_to_upsert)
