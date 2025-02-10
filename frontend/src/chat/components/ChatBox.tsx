@@ -1,15 +1,87 @@
 import { Box, Button, ScrollArea, TextInput } from '@mantine/core';
 import ReactMarkdown from 'react-markdown';
 import { Message } from '../types';
+import { useState, useEffect } from 'react';
+import { API } from '../../constants/api';
 
 interface ChatBoxProps {
-  messages: Message[];
-  inputValue: string;
-  setInputValue: (value: string) => void;
-  onSendMessage: () => void;
+  activeHistoryId: number | null;
 }
 
-export function ChatBox({ messages, inputValue, setInputValue, onSendMessage }: ChatBoxProps) {
+export function ChatBox({ activeHistoryId }: ChatBoxProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState('');
+
+  useEffect(() => {
+    if (activeHistoryId) {
+      fetch(`${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.histories.messages(activeHistoryId)}`)
+        .then(res => res.json())
+        .then(data => setMessages(data.map((msg: any) => ({
+          content: msg.content,
+          sender: msg.role === 'user' ? 'user' : 'bot'
+        }))));
+    } else {
+      setMessages([]);
+    }
+  }, [activeHistoryId]);
+
+  const handleSendMessage = () => {
+    setMessages(prev => [
+      ...prev,
+      { content: inputValue, sender: 'user' },
+      { content: '', sender: 'bot' }
+    ]);
+
+    const eventSource = new EventSource(
+      `${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.stream(encodeURIComponent(inputValue), activeHistoryId)}`
+    );
+
+    eventSource.onmessage = (event) => {
+      if (event.data === "[DONE]") {
+        eventSource.close();
+        return;
+      }
+
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastMessage = updated[updated.length - 1];
+
+        if (event.type === 'status') {
+          if (lastMessage.sender === 'bot') {
+            lastMessage.content = event.data;
+          } else {
+            updated.push({ content: event.data, sender: 'bot' });
+          }
+          return updated;
+        }
+
+        if (lastMessage?.sender === 'bot') {
+          const current = lastMessage.content;
+          const incoming = event.data;
+
+          if (incoming.startsWith(current)) {
+            lastMessage.content = incoming;
+          } else {
+            let overlapLength = 0;
+            for (let i = 1; i <= Math.min(current.length, incoming.length); i++) {
+              if (current.slice(-i) === incoming.slice(0, i)) {
+                overlapLength = i;
+              }
+            }
+            lastMessage.content = current + incoming.slice(overlapLength);
+          }
+        }
+        return updated;
+      });
+    };
+
+    eventSource.onerror = (error) => {
+      console.error("SSE Error:", error);
+      eventSource.close();
+    };
+    setInputValue('');
+  };
+
   return (
     <Box style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <ScrollArea style={{ flexGrow: 1, paddingBottom: '120px' }}>
@@ -50,14 +122,14 @@ export function ChatBox({ messages, inputValue, setInputValue, onSendMessage }: 
           onChange={(e) => setInputValue(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              onSendMessage();
+              handleSendMessage();
             }
           }}
           style={{ width: '600px' }}
         />
         <Button
           variant="filled"
-          onClick={onSendMessage}
+          onClick={handleSendMessage}
         >
           Send
         </Button>
