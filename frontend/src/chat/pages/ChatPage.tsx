@@ -4,6 +4,7 @@ import { IconMessageCircle } from '@tabler/icons-react';
 import { ChatSidebar } from '../components/ChatSidebar';
 import { ChatBox } from '../components/ChatBox';
 import { ChatHistory, Message } from '../types';
+import { API } from '../../constants/api';
 
 export default function ChatPage() {
   const [chatHistories, setChatHistories] = useState<ChatHistory[]>([]);
@@ -13,14 +14,14 @@ export default function ChatPage() {
   const [isCreatingChat, setIsCreatingChat] = useState(false);
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/chats/histories/')
+    fetch(`${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.histories.list}`)
       .then(res => res.json())
       .then(data => setChatHistories(data));
   }, []);
 
   useEffect(() => {
     if (activeHistoryId) {
-      fetch(`http://localhost:8000/api/chats/histories/${activeHistoryId}/messages/`)
+      fetch(`${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.histories.messages(activeHistoryId)}`)
         .then(res => res.json())
         .then(data => setMessages(data.map((msg: any) => ({
           content: msg.content,
@@ -39,7 +40,7 @@ export default function ChatPage() {
     ]);
 
     const eventSource = new EventSource(
-      `http://localhost:8000/api/chats/stream/?query=${encodeURIComponent(inputValue)}&chat_history_id=${activeHistoryId}`
+      `${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.stream(encodeURIComponent(inputValue), activeHistoryId)}`
     );
 
     eventSource.onmessage = (event) => {
@@ -90,7 +91,7 @@ export default function ChatPage() {
 
   const handleNewChat = () => {
     setIsCreatingChat(true);
-    fetch('http://localhost:8000/api/chats/histories/create/', {
+    fetch(`${import.meta.env.VITE_API_BASE_URL}${API.CHAT_API.histories.create}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
