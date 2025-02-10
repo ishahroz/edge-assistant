@@ -1,11 +1,31 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Backend for EdgeSignal Assistant"
+authors = [
+    {name = "Shahroz Ahmad", email = "ishahrozahmad90@gmail.com"},
+]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "celery>=5.4.0",
     "django>=5.1.6",
-    "django-cors-headers>=4.6.0",
+    "django-cors-headers>=4.7.0",
     "djangorestframework>=3.15.2",
+    "openai>=1.61.1",
+    "openpyxl>=3.1.5",
+    "pandas>=2.2.3",
+    "pinecone>=6.0.0",
+    "python-dotenv>=1.0.1",
+    "redis>=5.2.1",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.5",
+]
+
+[tool.ruff]
+lint.select = ["ALL"]
+lint.ignore = ["D100", "D101", "D106", "RUF012", "ANN002", "ANN003"]
+line-length = 91
