@@ -12,7 +12,7 @@ export default function ChatPage() {
   const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
-    fetch('http://localhost:8000/api/chats/')
+    fetch('http://localhost:8000/api/chats/list/')
       .then(res => res.json())
       .then(data => setChatHistories(data));
   }, []);
@@ -24,7 +24,7 @@ export default function ChatPage() {
       { content: '', sender: 'server' }
     ]);
 
-    const eventSource = new EventSource(`http://localhost:8000/rag/stream/?query=${encodeURIComponent(inputValue)}`);
+    const eventSource = new EventSource(`http://localhost:8000/api/chats/stream/?query=${encodeURIComponent(inputValue)}`);
 
     eventSource.onmessage = (event) => {
       if (event.data === "[DONE]") {
